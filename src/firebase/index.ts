@@ -1,8 +1,8 @@
 import { getApps, initializeApp } from "firebase/app";
-import { getAuth, initializeAuth, inMemoryPersistence } from "firebase/auth/cordova";
-import { getFirestore } from "firebase/firestore";
-import { getFunctions } from "firebase/functions";
-import { getStorage } from "firebase/storage";
+import { connectAuthEmulator, getAuth, initializeAuth, inMemoryPersistence } from "firebase/auth/cordova";
+import { connectFirestoreEmulator, getFirestore } from "firebase/firestore";
+import { connectFunctionsEmulator, getFunctions } from "firebase/functions";
+import { connectStorageEmulator, getStorage } from "firebase/storage";
 
 // degerler .env dosyasindan gelir, ornegi .env.example icinde
 export const firebaseConfig = {
@@ -29,3 +29,12 @@ export const auth = createAuth();
 export const db = getFirestore(app);
 export const storage = getStorage(app);
 export const functions = getFunctions(app, "us-central1");
+
+// yerel gelistirme: .env.local icinde host verilirse emulatorlere baglanir
+const emulatorHost = process.env.EXPO_PUBLIC_FIREBASE_EMULATOR_HOST;
+if (emulatorHost) {
+  connectAuthEmulator(auth, `http://${emulatorHost}:9099`, { disableWarnings: true });
+  connectFirestoreEmulator(db, emulatorHost, 8080);
+  connectStorageEmulator(storage, emulatorHost, 9199);
+  connectFunctionsEmulator(functions, emulatorHost, 5001);
+}

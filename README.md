@@ -8,12 +8,17 @@
 
 <br>
 
+<img src="docs/screenshots/hero.jpg" alt="Afet Yardım: Çağrıyı sahaya ulaştır" width="100%">
+
+<br>
+<br>
+
 Deprem, sel ve benzeri afetlerde yardım talebini, sahadaki gönüllüyü ve operasyonu yöneten koordinatörü<br>
 gerçek zamanlı olarak bir araya getiren, iOS ve Android için çok rollü mobil platform.
 
 <br>
 
-**[Roller](#roller)** &nbsp;·&nbsp; **[Mimari](#mimari)** &nbsp;·&nbsp; **[Güvenlik](#güvenlik-ve-gizlilik)** &nbsp;·&nbsp; **[Testler](#testler)** &nbsp;·&nbsp; **[Kurulum](#kurulum)** &nbsp;·&nbsp; **[Yol haritası](#yol-haritası)**
+**[Ekranlar](#ekranlar)** &nbsp;·&nbsp; **[Roller](#roller)** &nbsp;·&nbsp; **[Mimari](#mimari)** &nbsp;·&nbsp; **[Güvenlik](#güvenlik-ve-gizlilik)** &nbsp;·&nbsp; **[Testler](#testler)** &nbsp;·&nbsp; **[Kurulum](#kurulum)** &nbsp;·&nbsp; **[Yol haritası](#yol-haritası)**
 
 </div>
 
@@ -41,6 +46,19 @@ gerçek zamanlı olarak bir araya getiren, iOS ve Android için çok rollü mobi
     </td>
   </tr>
 </table>
+
+<br>
+
+## Ekranlar
+
+<p align="center"><img src="docs/screenshots/01-sos.jpg" width="100%" alt="Afetzede: tek dokunuşla yardım çağır"></p>
+<p align="center"><img src="docs/screenshots/02-request.jpg" width="100%" alt="Yardım talebi: durumu anlat, süreci izle"></p>
+<p align="center"><img src="docs/screenshots/03-volunteer.jpg" width="100%" alt="Gönüllü: doğru görev, doğru kişiye"></p>
+<p align="center"><img src="docs/screenshots/04-map.jpg" width="100%" alt="Canlı harita: sahayı anlık gör"></p>
+<p align="center"><img src="docs/screenshots/05-coordinator.jpg" width="100%" alt="Koordinatör: operasyon tek ekranda"></p>
+<p align="center"><img src="docs/screenshots/06-chat.jpg" width="100%" alt="İletişim: aynı kanalda kal"></p>
+
+<p align="center"><sub>Telefon ekranları, uygulamanın Android emülatöründe kurgusal demo verilerle alınmış gerçek görüntüleridir. Kişiler ve olaylar gerçek değildir.</sub></p>
 
 <br>
 
