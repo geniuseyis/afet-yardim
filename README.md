@@ -18,7 +18,7 @@ gerçek zamanlı olarak bir araya getiren, iOS ve Android için çok rollü mobi
 
 <br>
 
-**[Ekranlar](#ekranlar)** &nbsp;·&nbsp; **[Roller](#roller)** &nbsp;·&nbsp; **[Mimari](#mimari)** &nbsp;·&nbsp; **[Güvenlik](#güvenlik-ve-gizlilik)** &nbsp;·&nbsp; **[Testler](#testler)** &nbsp;·&nbsp; **[Kurulum](#kurulum)** &nbsp;·&nbsp; **[Yol haritası](#yol-haritası)**
+**[Ekranlar](#ekranlar)** &nbsp;·&nbsp; **[Roller](#roller)** &nbsp;·&nbsp; **[Mimari](#mimari)** &nbsp;·&nbsp; **[Güvenlik](#güvenlik-ve-gizlilik)** &nbsp;·&nbsp; **[Testler](#testler)** &nbsp;·&nbsp; **[Yol haritası](#yol-haritası)**
 
 </div>
 
@@ -136,7 +136,7 @@ flowchart LR
 │   ├── navigation/       # kök gezinme ve rol yönlendirmesi
 │   ├── services/         # backend, bildirim, telemetri
 │   ├── store/            # Zustand durumu
-│   └── firebase/         # istemci yapılandırması (.env)
+│   └── firebase/         # istemci yapılandırması
 ├── functions/src/        # Cloud Functions ve birim testleri
 ├── tests/rules/          # güvenlik kuralı testleri
 ├── firestore.rules       # veritabanı yetkileri
@@ -167,29 +167,6 @@ Gizlilik politikası: [docs/privacy-policy.md](docs/privacy-policy.md)
 | :-- | :-- |
 | `tests/rules` | 22 güvenlik testi: rol yükseltme, davet kodu sızıntısı, talep ele geçirme, yabancının sohbet okuması, dosya yetkileri |
 | `functions/src` | 15 birim testi: talep durum geçişleri, risk algılama, oturum denetimi, kişisel veri özetleri |
-
-```bash
-npm run test:rules        # Firebase Emulator gerekir (Java)
-cd functions && npm test
-```
-
-<br>
-
-## Kurulum
-
-```bash
-npm install && (cd functions && npm install)
-cp .env.example .env      # Firebase değerlerini doldur
-npx expo start
-```
-
-Sunucu tarafı:
-
-```bash
-firebase functions:secrets:set GEMINI_API_KEY
-firebase functions:secrets:set OPENAI_API_KEY
-firebase deploy --only firestore:rules,storage,functions
-```
 
 <br>
 
