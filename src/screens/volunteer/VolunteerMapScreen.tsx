@@ -92,8 +92,6 @@ export const VolunteerMapScreen = ({ navigation }: { navigation: any }) => {
 
 
   const [poiLoading, setPoiLoading] = useState(false);
-  // Firebase projesiyle aynı Google Cloud projesinin API anahtarı
-  const GMAPS_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || "";
 
   // [FONKSIYON] zoomIn / zoomOut: Haritayı programatik yakınlaştırır/uzaklaştırır.
   const zoomIn = () => {
@@ -121,108 +119,17 @@ export const VolunteerMapScreen = ({ navigation }: { navigation: any }) => {
   };
 
   // [FONKSIYON] textSearch: Places Text Search API ile arama yapar — H logolu hastaneleri döndürür.
-  const textSearch = async (
-    lat: number, lng: number, query: string
-  ): Promise<Array<{ id: string; lat: number; lng: number; name: string }>> => {
-    const params = new URLSearchParams({
-      query,
-      location: `${lat},${lng}`,
-      radius: "15000",
-      key: GMAPS_KEY,
-      language: "tr"
-    });
-    const url = `https://maps.googleapis.com/maps/api/place/textsearch/json?${params}`;
-    const res = await fetch(url);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const json = await res.json();
-    if (json.status === "REQUEST_DENIED" || json.status === "INVALID_REQUEST") {
-      throw new Error(`${json.status}: ${json.error_message || ""}`);
-    }
-    if (json.status === "ZERO_RESULTS") return [];
-    return (json.results || []).map((p: any) => ({
-      id: p.place_id,
-      lat: p.geometry?.location?.lat ?? 0,
-      lng: p.geometry?.location?.lng ?? 0,
-      name: p.name || ""
-    })).filter((p: any) => p.lat !== 0);
-  };
-
-  // [FONKSIYON] placesSearch: keyword veya type ile Google Places Nearby Search yapar.
-  const placesSearch = async (
-    lat: number, lng: number,
-    opts: { keyword?: string; type?: string }
-  ): Promise<Array<{ id: string; lat: number; lng: number; name: string }>> => {
-    const params: Record<string, string> = {
-      location: `${lat},${lng}`,
-      radius: "15000",
-      key: GMAPS_KEY,
-      language: "tr"
-    };
-    if (opts.keyword) params.keyword = opts.keyword;
-    if (opts.type) params.type = opts.type;
-    const url = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?${new URLSearchParams(params)}`;
-    const res = await fetch(url);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const json = await res.json();
-    if (json.status === "REQUEST_DENIED" || json.status === "INVALID_REQUEST") {
-      throw new Error(`${json.status}: ${json.error_message || ""}`);
-    }
-    if (json.status === "ZERO_RESULTS") return [];
-    return (json.results || []).map((p: any) => ({
-      id: p.place_id,
-      lat: p.geometry?.location?.lat ?? 0,
-      lng: p.geometry?.location?.lng ?? 0,
-      name: p.name || ""
-    })).filter((p: any) => p.lat !== 0);
-  };
-
-  // [FONKSIYON] fetchPOIs: Haritanın görünen merkezini kullanarak Google Places ile veri çeker.
+  // [FONKSIYON] fetchPOIs: Haritanin merkezine gore OpenStreetMap verisi ceker, anahtar gerekmez.
   const fetchPOIs = async (lat: number, lng: number, type: "hospitals" | "assembly") => {
     setPoiLoading(true);
     try {
-      let results: Array<{ id: string; lat: number; lng: number; name: string }> = [];
-
-      if (type === "hospitals") {
-        // Text Search API — type kısıtı yok, H logolu gerçek hastaneleri döndürür
-        const [r1, r2] = await Promise.allSettled([
-          textSearch(lat, lng, "hastane"),
-          textSearch(lat, lng, "devlet hastanesi")
-        ]);
-        const seen = new Set<string>();
-        results = [
-          ...(r1.status === "fulfilled" ? r1.value : []),
-          ...(r2.status === "fulfilled" ? r2.value : [])
-        ].filter((p) => { if (seen.has(p.id)) return false; seen.add(p.id); return true; }).slice(0, 80);
-      } else {
-        // Toplanma alanı: Text Search + Nearby
-        const [r1, r2] = await Promise.allSettled([
-          textSearch(lat, lng, "toplanma alanı"),
-          placesSearch(lat, lng, { type: "park" })
-        ]);
-        const seen = new Set<string>();
-        results = [
-          ...(r1.status === "fulfilled" ? r1.value : []),
-          ...(r2.status === "fulfilled" ? r2.value : [])
-        ].filter((x) => { if (seen.has(x.id)) return false; seen.add(x.id); return true; }).slice(0, 80);
-      }
-
-      if (results.length > 0) {
-        setPois(results.map((r) => ({
-          ...r,
-          type: type === "hospitals" ? "hospital" as const : "assembly" as const
-        })));
-        setPoiLoading(false);
-        return;
-      }
-    } catch {
-      // Google Places başarısız — Overpass'a düş
+      await fetchOverpassFallback(lat, lng, type);
+    } finally {
+      setPoiLoading(false);
     }
-
-    // Overpass fallback
-    await fetchOverpassFallback(lat, lng, type);
   };
 
-  // [FONKSIYON] fetchOverpassFallback: Google Places çalışmazsa Overpass OSM verisi alır.
+  // [FONKSIYON] fetchOverpassFallback: Overpass uzerinden OSM verisi alir.
   const fetchOverpassFallback = async (lat: number, lng: number, type: "hospitals" | "assembly") => {
     const oql = type === "hospitals"
       ? `[out:json][timeout:25];(node["amenity"="hospital"](around:15000,${lat},${lng});way["amenity"="hospital"](around:15000,${lat},${lng});node["amenity"="clinic"](around:15000,${lat},${lng}););out center;`

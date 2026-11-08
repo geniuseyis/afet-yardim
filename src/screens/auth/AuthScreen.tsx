@@ -17,7 +17,7 @@ import { functions } from "../../firebase";
 import type { Req, RequestStatus } from "../shared/ScreenDeps";
 import { l, t } from "../../services/i18n";
 import { upsertUserPublicDoc } from "../../services/userPublic";
-import { hashEmail, hashPhone, hashTc, maskEmail, maskPhone, maskTc, normalizePhone, normalizeTc } from "../../utils/privacy";
+import { hashEmail, hashPhone, hashTc, legacyHashPhone, legacyHashTc, maskEmail, maskPhone, maskTc, normalizePhone, normalizeTc } from "../../utils/privacy";
 
 /**
  * AUTH DOSYA HARITASI
@@ -77,8 +77,8 @@ export const AuthScreen = () => {
       if (!isFunctionUnavailable) throw e;
 
       try {
-        const tcHash = hashTc(tcNo);
-        const phoneHash = hashPhone(phoneNo);
+        const tcHash = await hashTc(tcNo);
+        const phoneHash = await hashPhone(phoneNo);
         const [tcHashSnap, phoneHashSnap, tcLegacySnap, phoneLegacySnap, tcNestedLegacySnap, phoneNestedLegacySnap] = await Promise.all([
           getDocs(query(collection(db, "users"), where("tcNo_hash", "==", tcHash), limit(1))),
           getDocs(query(collection(db, "users"), where("phone_hash", "==", phoneHash), limit(1))),
@@ -155,16 +155,16 @@ export const AuthScreen = () => {
           const data = userSnap.data() as any;
           const inputTc = normalizeTc(tc);
           const inputPhone = normalizePhone(phone);
-          const inputTcHash = hashTc(inputTc);
-          const inputPhoneHash = hashPhone(inputPhone);
+          const inputTcHash = await hashTc(inputTc);
+          const inputPhoneHash = await hashPhone(inputPhone);
           const dbTcHash = String(data?.tcNo_hash || "");
           const dbPhoneHash = String(data?.phone_hash || "");
           if (!dbTcHash || !dbPhoneHash) {
             await signOut(auth);
             return Alert.alert(L("Hata", "Error"), L("Hesap güvenlik güncellemesi gerekiyor. Lütfen yöneticiye başvurun.", "Account security update required. Contact coordinator."));
           }
-          const tcMatches = dbTcHash === inputTcHash;
-          const phoneMatches = dbPhoneHash === inputPhoneHash;
+          const tcMatches = dbTcHash === inputTcHash || dbTcHash === legacyHashTc(inputTc);
+          const phoneMatches = dbPhoneHash === inputPhoneHash || dbPhoneHash === legacyHashPhone(inputPhone);
           if (!tcMatches || !phoneMatches) {
             await signOut(auth);
             if (!tcMatches && !phoneMatches) {
@@ -174,6 +174,14 @@ export const AuthScreen = () => {
               return Alert.alert(L("Hata", "Error"), L("TC kimlik numarası kayıt bilgisi ile eşleşmiyor.", "National ID does not match registered data."));
             }
             return Alert.alert(L("Hata", "Error"), L("Telefon numarası kayıt bilgisi ile eşleşmiyor.", "Phone number does not match registered data."));
+          }
+          // eski ozetli hesap dogru bilgiyle girdiyse yeni ozete gecir
+          if (dbTcHash !== inputTcHash || dbPhoneHash !== inputPhoneHash) {
+            await setDoc(
+              doc(db, "users", cred.user.uid),
+              { tcNo_hash: inputTcHash, phone_hash: inputPhoneHash, email_hash: await hashEmail(em), piiVersion: 3, updatedAt: serverTimestamp() },
+              { merge: true }
+            ).catch(() => undefined);
           }
         } catch (verifyErr: any) {
           await signOut(auth);
@@ -220,10 +228,10 @@ export const AuthScreen = () => {
           email_masked: maskEmail(normalizedEmail),
           phone_masked: maskPhone(normalizedPhone),
           tcNo_masked: maskTc(normalizedTc),
-          email_hash: hashEmail(normalizedEmail),
-          phone_hash: hashPhone(normalizedPhone),
-          tcNo_hash: hashTc(normalizedTc),
-          piiVersion: 2,
+          email_hash: await hashEmail(normalizedEmail),
+          phone_hash: await hashPhone(normalizedPhone),
+          tcNo_hash: await hashTc(normalizedTc),
+          piiVersion: 3,
           role: null,
           isCoordinator: false,
           isApprovedVolunteer: false,

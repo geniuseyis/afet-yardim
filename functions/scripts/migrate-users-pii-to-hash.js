@@ -18,16 +18,8 @@ const LIMIT = LIMIT_ARG ? Number(LIMIT_ARG.split("=")[1]) : 0;
 const normalizeDigits11 = (value) => String(value || "").replace(/\D/g, "").slice(0, 11);
 const normalizeEmail = (value) => String(value || "").trim().toLowerCase();
 
-const fnv1a32 = (input) => {
-  let hash = 0x811c9dc5;
-  for (let i = 0; i < input.length; i += 1) {
-    hash ^= input.charCodeAt(i);
-    hash = Math.imul(hash, 0x01000193) >>> 0;
-  }
-  return hash.toString(16).padStart(8, "0");
-};
-
-const piiHash = (scope, value) => (value ? fnv1a32(`afy-v1|${scope}|${value}`) : "");
+const { pbkdf2Sync } = require("crypto");
+const piiHash = (scope, value) => (value ? pbkdf2Sync(value, `afy-v3|${scope}`, 20000, 16, "sha256").toString("hex") : "");
 
 const maskKeepingLast = (raw, keep = 2) => {
   const value = String(raw || "").trim();

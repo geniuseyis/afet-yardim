@@ -115,7 +115,7 @@ flowchart LR
 | :-- | :-- |
 | Uygulama | Expo SDK 54, React Native 0.81, TypeScript |
 | Gezinme ve durum | React Navigation, Zustand |
-| Harita ve konum | react-native-maps, expo-location, Google Places |
+| Harita ve konum | react-native-maps, expo-location, OpenStreetMap (Overpass) |
 | Medya ve bildirim | expo-av, expo-image-picker, expo-notifications |
 | Sunucu | Firebase Auth, Firestore, Storage, Cloud Functions (Node 22) |
 | Mesajlaşma | Twilio SMS ve WhatsApp, Nodemailer |
@@ -152,8 +152,8 @@ flowchart LR
 
 - **Rol yükseltme kapalı:** kullanıcı kendine koordinatör rolü veremez, gönüllü kendini onaylayamaz.
 - **Veri yalnızca ilgilisine açık:** talepler sahibine, atanan gönüllüye, onaylı gönüllülere ve koordinatöre; sohbetler yalnızca katılımcılara görünür.
-- **Sırlar sunucuda:** AI, SMS ve e-posta anahtarları Secret Manager'da durur, uygulama paketine girmez.
-- **Kişisel veri maskeli:** TC, telefon ve e-posta ham olarak saklanmaz; özet ve maskeli hâlleri tutulur.
+- **Sırlar sunucuda:** AI, SMS ve e-posta anahtarları Secret Manager'da durur, uygulama paketine girmez. Yakındaki hastane ve toplanma alanları anahtar gerektirmeyen OpenStreetMap verisinden gelir.
+- **Kişisel veri maskeli:** TC, telefon ve e-posta ham olarak saklanmaz; PBKDF2 özeti ve maskeli hâlleri tutulur, eski kayıtlar girişte otomatik yükseltilir.
 - **Kötüye kullanım sınırı:** e-posta, SMS, davet kodu ve AI çağrılarında kota; SMS kodları tuzlu HMAC ile saklanır ve istemciye kapalıdır.
 - **Dosya sınırları:** yüklemelerde sahiplik, tür ve boyut denetimi vardır.
 
@@ -166,7 +166,7 @@ Gizlilik politikası: [docs/privacy-policy.md](docs/privacy-policy.md)
 | Paket | Kapsam |
 | :-- | :-- |
 | `tests/rules` | 22 güvenlik testi: rol yükseltme, davet kodu sızıntısı, talep ele geçirme, yabancının sohbet okuması, dosya yetkileri |
-| `functions/src` | 13 birim testi: talep durum geçişleri, risk algılama, oturum denetimi |
+| `functions/src` | 15 birim testi: talep durum geçişleri, risk algılama, oturum denetimi, kişisel veri özetleri |
 
 ```bash
 npm run test:rules        # Firebase Emulator gerekir (Java)
@@ -179,7 +179,7 @@ cd functions && npm test
 
 ```bash
 npm install && (cd functions && npm install)
-cp .env.example .env      # Firebase ve Places değerlerini doldur
+cp .env.example .env      # Firebase değerlerini doldur
 npx expo start
 ```
 
@@ -198,8 +198,9 @@ firebase deploy --only firestore:rules,storage,functions
 - [x] Üç rollü gerçek zamanlı akış ve operasyon paneli
 - [x] Sunucu tarafı yetki, kota ve güvenlik kuralı testleri
 - [x] AI çağrılarının sunucuya taşınması
-- [ ] Places çağrılarının da sunucuya taşınması
-- [ ] App Check ve Expo SDK yükseltmesi
+- [ ] Güncel sunucu fonksiyonlarının canlıya alınması (Blaze planı gerekiyor)
+- [ ] Firebase App Check
+- [ ] Expo SDK ve React Navigation yükseltmesi
 - [ ] Fiziksel cihaz testi ve saha denemesi
 - [ ] Google Play ve App Store yayını
 

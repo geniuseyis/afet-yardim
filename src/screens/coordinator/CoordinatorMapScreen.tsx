@@ -104,42 +104,10 @@ export const CoordinatorMapScreen = () => {
     };
   }, [showToast]);
 
-  const GMAPS_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || "";
   const CENTER = { latitude: 39.9334, longitude: 32.8597 };
 
-  const textSearch = async (lat: number, lng: number, query: string) => {
-    const params = new URLSearchParams({ query, location: `${lat},${lng}`, radius: "20000", key: GMAPS_KEY, language: "tr" });
-    const res = await fetch(`https://maps.googleapis.com/maps/api/place/textsearch/json?${params}`);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const json = await res.json();
-    if (json.status === "REQUEST_DENIED" || json.status === "INVALID_REQUEST") throw new Error(json.status);
-    return (json.results || []).map((p: any) => ({
-      id: p.place_id, lat: p.geometry?.location?.lat ?? 0, lng: p.geometry?.location?.lng ?? 0, name: p.name || ""
-    })).filter((p: any) => p.lat !== 0);
-  };
-
-  // [FONKSIYON] fetchPOIs: Google Places Text Search önce, Overpass fallback.
+  // [FONKSIYON] fetchPOIs: Hastane ve toplanma alanlarini OpenStreetMap'ten ceker, anahtar gerekmez.
   const fetchPOIs = async (lat: number, lng: number, type: "hospitals" | "assembly") => {
-    try {
-      let results: Array<{ id: string; lat: number; lng: number; name: string }> = [];
-      if (type === "hospitals") {
-        const [h, d] = await Promise.allSettled([textSearch(lat, lng, "hastane"), textSearch(lat, lng, "devlet hastanesi")]);
-        const seen = new Set<string>();
-        results = [...(h.status === "fulfilled" ? h.value : []), ...(d.status === "fulfilled" ? d.value : [])]
-          .filter((p) => { if (seen.has(p.id)) return false; seen.add(p.id); return true; }).slice(0, 80);
-      } else {
-        const [r1, r2] = await Promise.allSettled([textSearch(lat, lng, "toplanma alanı"), textSearch(lat, lng, "park")]);
-        const seen = new Set<string>();
-        results = [...(r1.status === "fulfilled" ? r1.value : []), ...(r2.status === "fulfilled" ? r2.value : [])]
-          .filter((x) => { if (seen.has(x.id)) return false; seen.add(x.id); return true; }).slice(0, 80);
-      }
-      if (results.length > 0) {
-        setPois(results.map((r) => ({ ...r, type: type === "hospitals" ? "hospital" as const : "assembly" as const })));
-        return;
-      }
-    } catch { /* fallback */ }
-
-    // Overpass fallback
     const oql = type === "hospitals"
       ? `[out:json][timeout:25];(node["amenity"="hospital"](around:20000,${lat},${lng});way["amenity"="hospital"](around:20000,${lat},${lng});node["amenity"="clinic"](around:20000,${lat},${lng}););out center;`
       : `[out:json][timeout:25];(node["emergency"="assembly_point"](around:20000,${lat},${lng});node["leisure"="park"](around:8000,${lat},${lng});node["amenity"="school"](around:5000,${lat},${lng}););out center;`;

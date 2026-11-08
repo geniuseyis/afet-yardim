@@ -5,6 +5,10 @@
  * - PRIVACY-MASK: Masks sensitive fields for UI.
  */
 
+import { pbkdf2Async } from "@noble/hashes/pbkdf2";
+import { sha256 } from "@noble/hashes/sha256";
+import { bytesToHex } from "@noble/hashes/utils";
+
 const STAR = "*";
 
 const maskKeepingLast = (raw: string, keep = 2): string => {
@@ -35,12 +39,40 @@ const fnv1a32 = (input: string): string => {
   return hash.toString(16).padStart(8, "0");
 };
 
-const piiHash = (scope: "tcNo" | "phone" | "email", value: string): string =>
+type PiiScope = "tcNo" | "phone" | "email";
+
+const legacyPiiHash = (scope: PiiScope, value: string): string =>
   value ? fnv1a32(`afy-v1|${scope}|${value}`) : "";
 
-export const hashTc = (tcNo?: string | null): string => piiHash("tcNo", normalizeTc(tcNo));
-export const hashPhone = (phone?: string | null): string => piiHash("phone", normalizePhone(phone));
-export const hashEmail = (email?: string | null): string => piiHash("email", normalizeEmail(email));
+// eski kayitlar yalnizca giriste karsilastirilir, sonra yeni ozete gecer
+export const legacyHashTc = (tcNo?: string | null): string => legacyPiiHash("tcNo", normalizeTc(tcNo));
+export const legacyHashPhone = (phone?: string | null): string => legacyPiiHash("phone", normalizePhone(phone));
+
+const PII_ITERATIONS = 20000;
+
+// hermes'te TextEncoder'a guvenmemek icin elle utf-8
+const toBytes = (text: string): Uint8Array => {
+  const out: number[] = [];
+  for (const char of text) {
+    const code = char.codePointAt(0) as number;
+    if (code < 0x80) out.push(code);
+    else if (code < 0x800) out.push(0xc0 | (code >> 6), 0x80 | (code & 63));
+    else if (code < 0x10000) out.push(0xe0 | (code >> 12), 0x80 | ((code >> 6) & 63), 0x80 | (code & 63));
+    else out.push(0xf0 | (code >> 18), 0x80 | ((code >> 12) & 63), 0x80 | ((code >> 6) & 63), 0x80 | (code & 63));
+  }
+  return Uint8Array.from(out);
+};
+
+// functions/src/pii.ts ile ayni sonucu vermeli, kayit cakismasi orada da aranir
+const piiHash = async (scope: PiiScope, value: string): Promise<string> => {
+  if (!value) return "";
+  const key = await pbkdf2Async(sha256, toBytes(value), toBytes(`afy-v3|${scope}`), { c: PII_ITERATIONS, dkLen: 16 });
+  return bytesToHex(key);
+};
+
+export const hashTc = (tcNo?: string | null): Promise<string> => piiHash("tcNo", normalizeTc(tcNo));
+export const hashPhone = (phone?: string | null): Promise<string> => piiHash("phone", normalizePhone(phone));
+export const hashEmail = (email?: string | null): Promise<string> => piiHash("email", normalizeEmail(email));
 
 export const maskPhone = (phone?: string | null): string => {
   const raw = String(phone || "").trim();

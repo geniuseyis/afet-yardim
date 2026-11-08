@@ -192,66 +192,10 @@ export const MapScreen = () => {
         distanceKm: kmBetween(baseLoc, { lat: baseLoc.latitude + 0.015, lng: baseLoc.longitude - 0.012 })
       }
     ] as any);
-    // Google Places API ile gerçek hastane/toplanma alanı verilerini çek
-    const GMAPS_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || "";
-    const fetchGooglePlaces = async (): Promise<Array<any>> => {
-      try {
-        const params = (extra: Record<string, string>) => new URLSearchParams({
-          location: `${baseLoc.latitude},${baseLoc.longitude}`,
-          radius: "20000",
-          key: GMAPS_KEY,
-          language: "tr",
-          ...extra
-        });
-        // Paralel: hastaneler (nearby) + toplanma alanları (text search)
-        const [hospResp, asmResp] = await Promise.all([
-          Promise.race([
-            fetch(`https://maps.googleapis.com/maps/api/place/nearbysearch/json?${params({ type: "hospital" })}`).then(r => r.json()),
-            new Promise<null>((resolve) => setTimeout(() => resolve(null), 12000))
-          ]),
-          Promise.race([
-            fetch(`https://maps.googleapis.com/maps/api/place/textsearch/json?${params({ query: "toplanma alanı acil durum" })}`).then(r => r.json()),
-            new Promise<null>((resolve) => setTimeout(() => resolve(null), 12000))
-          ])
-        ]);
-        const out: any[] = [];
-        const consumeGoogleResults = (resp: any, kind: "hospital" | "assembly") => {
-          const items = Array.isArray(resp?.results) ? resp.results : [];
-          items.forEach((p: any) => {
-            const latitude = p?.geometry?.location?.lat;
-            const longitude = p?.geometry?.location?.lng;
-            if (!latitude || !longitude) return;
-            out.push({
-              id: `g-${kind}-${p.place_id || `${latitude}-${longitude}`}`,
-              kind,
-              title: p.name || (kind === "hospital" ? "Hastane" : "Toplanma Alanı"),
-              address: p.vicinity || p.formatted_address || "",
-              rating: typeof p.rating === "number" ? p.rating : null,
-              latitude,
-              longitude,
-              distanceKm: kmBetween(baseLoc, { lat: latitude, lng: longitude })
-            });
-          });
-        };
-        consumeGoogleResults(hospResp, "hospital");
-        consumeGoogleResults(asmResp, "assembly");
-        return out;
-      } catch {
-        return [];
-      }
-    };
-
     const fetchNearbyPoi = async () => {
       setPoiLoading(true);
       try {
-        // 1) Önce Google Places — daha güvenilir ve isim/adres bilgisi ile gelir
-        const googleResults = await fetchGooglePlaces();
-        if (googleResults.length >= 4) {
-          const uniqG = Array.from(new Map(googleResults.map((m: any) => [m.id, m])).values()).slice(0, 160);
-          if (!cancelled) setNearbyPoi(uniqG as any);
-          return;
-        }
-        // 2) Google başarısız veya çok az sonuç döndü — Overpass'a düş
+        // hastane ve toplanma alanlari OpenStreetMap verisinden gelir, anahtar gerekmez
         const radius = 45000;
         const queryBody = `
 [out:json][timeout:20];

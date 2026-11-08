@@ -12,6 +12,7 @@ import OpenAI from "openai";
 import { canTransitionRequest, detectRisk, resolvedRole, transitionStatusForAction, urgentScore } from "./domain";
 import type { Role } from "./domain";
 import { mustAuth } from "./guards";
+import { legacyPiiHash, matchesPiiHash, piiHash } from "./pii";
 
 initializeApp();
 setGlobalOptions({ maxInstances: 10, region: "us-central1" });
@@ -246,23 +247,6 @@ const normalizePhoneForSms = (value: unknown): string => `${value || ""}`.replac
 // TC kimlik no ve telefon gibi kişisel verileri veritabanında AÇIK saklamak
 // yerine tek yönlü hash'e çeviririz. Böylece veri sızıntısında gerçek değerler
 // ele geçirilmez. FNV-1a hızlı ve deterministik bir hash algoritmasıdır.
-const fnv1a32 = (input: string): string => {
-  let hash = 0x811c9dc5; // FNV offset basis sabit başlangıç değeri
-  for (let i = 0; i < input.length; i += 1) {
-    hash ^= input.charCodeAt(i);           // XOR: karakter kodu ile hash'i karıştır
-    hash = Math.imul(hash, 0x01000193) >>> 0; // FNV prime ile çarp, 32 bite sığdır
-  }
-  return hash.toString(16).padStart(8, "0"); // 8 karakterlik hex string döndür
-};
-
-// piiHash: Kişisel veriyi (TC, telefon, e-posta) scope etiketi ile hash'ler.
-// Örnek: piiHash("phone", "05321234567") → "a3f2c1d8"
-// Aynı telefon numarası her zaman aynı hash'i verir → kayıt çakışması tespitinde kullanılır.
-const piiHash = (scope: "tcNo" | "phone" | "email", value: string): string =>
-  value ? fnv1a32(`afy-v1|${scope}|${value}`) : "";
-
-// smsCodeHash: SMS doğrulama kodunu veritabanında açık saklamak yerine hash'ler.
-// uid + code birlikte hash'lenir → farklı kullanıcıların aynı kodu tahmin etmesi engellenir.
 const smsCodeHash = (uid: string, code: string, salt: string): string =>
   createHmac("sha256", salt).update(`${uid}|${code}`).digest("hex");
 
@@ -517,8 +501,8 @@ export const checkRegistrationConflicts = onCall(async (request) => {
   const phoneHash = piiHash("phone", phone);
 
   const [tcHashSnap, phoneHashSnap, tcLegacySnap, phoneLegacySnap, tcNestedLegacySnap, phoneNestedLegacySnap] = await Promise.all([
-    db.collection("users").where("tcNo_hash", "==", tcHash).limit(1).get(),
-    db.collection("users").where("phone_hash", "==", phoneHash).limit(1).get(),
+    db.collection("users").where("tcNo_hash", "in", [tcHash, legacyPiiHash("tcNo", tcNo)]).limit(1).get(),
+    db.collection("users").where("phone_hash", "in", [phoneHash, legacyPiiHash("phone", phone)]).limit(1).get(),
     db.collection("users").where("tcNo", "==", tcNo).limit(1).get(),
     db.collection("users").where("phone", "==", phone).limit(1).get(),
     // Legacy compatibility: old onboarding bug wrote tc/phone under "skills" object.
@@ -573,8 +557,7 @@ export const sendPhoneVerificationCode = onCall(
   // → Başka bir telefona kod gönderilmesini engeller
   const expectedHash = `${userData?.phone_hash || ""}`.trim();
   if (expectedHash) {
-    const inputHash = piiHash("phone", rawPhone.slice(0, 11));
-    if (inputHash !== expectedHash) {
+    if (!matchesPiiHash(expectedHash, "phone", rawPhone.slice(0, 11))) {
       throw new HttpsError("permission-denied", "Telefon bilgisi hesap kaydiyla eslesmiyor.");
     }
   }
@@ -745,8 +728,7 @@ export const confirmPhoneByFirebaseToken = onCall(async (request) => {
   const expectedHash = `${userData?.phone_hash || ""}`.trim();
 
   if (expectedHash) {
-    const inputHash = piiHash("phone", normalizedPhone.slice(0, 11));
-    if (inputHash !== expectedHash) {
+    if (!matchesPiiHash(expectedHash, "phone", normalizedPhone.slice(0, 11))) {
       throw new HttpsError("permission-denied", "Doğrulanan telefon numarası hesap bilgisiyle eşleşmiyor.");
     }
   }
