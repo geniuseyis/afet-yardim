@@ -1,0 +1,52 @@
+{
+  "name": "afet-yardim",
+  "version": "1.0.0",
+  "main": "index.js",
+  "private": true,
+  "scripts": {
+    "start": "expo start",
+    "android": "expo start --android",
+    "ios": "expo start --ios",
+    "web": "expo start --web",
+    "typecheck": "tsc --noEmit",
+    "preflight:release": "node scripts/release-preflight.js",
+    "build:android:preview": "eas build --platform android --profile preview",
+    "build:android:prod": "eas build --platform android --profile production",
+    "test:rules": "firebase emulators:exec --only firestore,storage --project demo-afet-yardim \"node --test tests/rules/firestore.rules.test.mjs\""
+  },
+  "dependencies": {
+    "@expo/vector-icons": "^15.0.3",
+    "@react-native-async-storage/async-storage": "2.2.0",
+    "@react-navigation/bottom-tabs": "^6.5.20",
+    "@react-navigation/native": "^6.1.17",
+    "@react-navigation/native-stack": "^6.10.0",
+    "babel-preset-expo": "~54.0.10",
+    "expo": "~54.0.33",
+    "expo-av": "~16.0.8",
+    "expo-blur": "~15.0.8",
+    "expo-file-system": "~19.0.22",
+    "expo-firebase-recaptcha": "^2.3.1",
+    "expo-font": "~14.0.11",
+    "expo-haptics": "~15.0.8",
+    "expo-image-picker": "~17.0.11",
+    "expo-linear-gradient": "~15.0.8",
+    "expo-location": "~19.0.8",
+    "expo-notifications": "~0.32.16",
+    "expo-sharing": "~14.0.8",
+    "firebase": "^12.19.0",
+    "react": "19.1.0",
+    "react-native": "0.81.5",
+    "react-native-maps": "1.20.1",
+    "react-native-qrcode-svg": "^6.3.0",
+    "react-native-safe-area-context": "~5.6.0",
+    "react-native-screens": "~4.16.0",
+    "react-native-svg": "15.12.1",
+    "react-native-webview": "13.15.0",
+    "zustand": "^4.5.4"
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "^6.0.0",
+    "@types/react": "~19.1.10",
+    "typescript": "~5.9.2"
+  }
+}

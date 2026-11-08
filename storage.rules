@@ -1,0 +1,35 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    function isStaff() {
+      return request.auth != null && (
+        request.auth.token.coordinator == true ||
+        request.auth.token.volunteer == true
+      );
+    }
+
+    function isOwner(uid) {
+      return request.auth != null && request.auth.uid == uid;
+    }
+
+    function isMedia(maxMb) {
+      return request.resource.size < maxMb * 1024 * 1024
+        && request.resource.contentType.matches('(image|audio|video)/.*|application/octet-stream');
+    }
+
+    match /exports/{uid}/{fileName} {
+      allow read: if isOwner(uid);
+      allow write: if false; // yalnizca cloud functions yazar
+    }
+
+    match /sos-voice/{uid}/{fileName} {
+      allow write: if isOwner(uid) && isMedia(25);
+      allow read: if isOwner(uid) || isStaff();
+    }
+
+    match /request-photos/{uid}/{fileName} {
+      allow write: if isOwner(uid) && isMedia(10);
+      allow read: if isOwner(uid) || isStaff();
+    }
+  }
+}

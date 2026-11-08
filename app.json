@@ -1,0 +1,48 @@
+{
+  "expo": {
+    "name": "Afet Yardım Sistemi",
+    "slug": "afet-yardim",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon-red.png",
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "image": "./assets/splash-red.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0B1220"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon-red.png",
+        "backgroundColor": "#0B1220"
+      },
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "POST_NOTIFICATIONS",
+        "RECORD_AUDIO",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE"
+      ],
+      "softwareKeyboardLayoutMode": "resize"
+    },
+    "web": {
+      "favicon": "./assets/favicon-red.png"
+    },
+    "plugins": [
+      "expo-notifications",
+      "expo-image-picker"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "278a3b75-9c5e-4e2c-b526-c31d174bb10d"
+      }
+    }
+  }
+}

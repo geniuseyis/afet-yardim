@@ -1,0 +1,44 @@
+# ── Bağımlılıklar ──────────────────────────────────────────────
+node_modules/
+functions/node_modules/
+
+# ── Expo / Metro ────────────────────────────────────────────────
+.expo/
+dist/
+web-build/
+*.local
+
+# ── Ortam değişkenleri (GERÇEK KEY'LER ASLA COMMIT ATILMAZ) ───
+.env
+.env.*
+!.env.example
+functions/.env
+functions/.env.*
+!functions/.env.example
+
+# ── Firebase derleme çıktısı ────────────────────────────────────
+functions/lib/
+
+# ── OS / IDE ────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+*.swp
+.vscode/
+.idea/
+.claude/
+google-services.json
+GoogleService-Info.plist
+*.keystore
+*.jks
+*.p8
+*.p12
+*.pem
+dist-check/
+firestore-debug.log
+firebase-debug.log
+storage-debug.log
+ui-debug.log
+
+# ── Geçici dosyalar ─────────────────────────────────────────────
+*.tmp
+*.log

@@ -1,0 +1,514 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isSelf(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    function hasUserDoc() {
+      return signedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function userDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function tokenRole() {
+      return signedIn() ? request.auth.token.role : null;
+    }
+
+    function userRole() {
+      return hasUserDoc() ? userDoc().data.role : tokenRole();
+    }
+
+    function volunteerStatus() {
+      return hasUserDoc() ? userDoc().data.get("volunteerStatus", null) : null;
+    }
+
+    function hasCoordinatorClaim() {
+      return signedIn() && (
+        request.auth.token.coordinator == true ||
+        request.auth.token.admin == true ||
+        request.auth.token.role == "coordinator"
+      );
+    }
+
+    function isCoordinatorFromDoc() {
+      return hasUserDoc() && (
+        userDoc().data.get("role", null) in ["coordinator", "yonetici", "yönetici", "admin"] ||
+        userDoc().data.get("isCoordinator", false) == true
+      );
+    }
+
+    function isCoordinator() {
+      return hasCoordinatorClaim() || isCoordinatorFromDoc();
+    }
+
+    function isVictim() {
+      return userRole() in ["victim", "afetzede"];
+    }
+
+    function isVolunteer() {
+      return userRole() in ["volunteer", "gonullu", "gönüllü"];
+    }
+
+    // onay yalnizca koordinatorden gelir, basvuran kendini onaylayamaz
+    function isApprovedVolunteer() {
+      return isVolunteer() && (
+        (signedIn() && request.auth.token.volunteerApproved == true) ||
+        volunteerStatus() == "approved"
+      );
+    }
+
+    // kullanicinin kendine verebilecegi degerler
+    function isSelfAssignableRole(data) {
+      return data.get("role", null) in [null, "victim", "afetzede", "volunteer", "gonullu", "gönüllü"];
+    }
+
+    function isSelfAssignableStatus(data) {
+      return data.get("volunteerStatus", null) in [null, "not_started", "draft", "submitted"];
+    }
+
+    function hasNoPrivilegedFlags(data) {
+      return data.get("isCoordinator", false) == false
+        && data.get("isApprovedVolunteer", false) == false;
+    }
+
+    function isRequestOwner(data) {
+      return signedIn() && (
+        data.get("userId", null) == request.auth.uid ||
+        data.get("createdBy", null) == request.auth.uid
+      );
+    }
+
+    function isRequestParty(requestId) {
+      let path = /databases/$(database)/documents/requests/$(requestId);
+      return exists(path) && (
+        isRequestOwner(get(path).data) ||
+        get(path).data.get("assignedVolunteerId", null) == request.auth.uid
+      );
+    }
+
+    function canAccessChat(data) {
+      return signedIn() && (
+        isCoordinator() ||
+        request.auth.uid in data.get("participantIds", []) ||
+        (data.get("requestId", null) is string && isRequestParty(data.requestId))
+      );
+    }
+
+    // henuz olusmamis kanalda mesaj da yoktur, ilk dinleyici hata almasin
+    function canAccessChatById(chatId) {
+      let path = /databases/$(database)/documents/chats/$(chatId);
+      return signedIn() && (!exists(path) || canAccessChat(get(path).data));
+    }
+
+    function canViewVictimMedia(data) {
+      return signedIn() && (
+        data.get("userId", null) == request.auth.uid ||
+        isCoordinator() ||
+        isApprovedVolunteer()
+      );
+    }
+
+    // --------------------------------------------------------------------
+    // USERS
+    // --------------------------------------------------------------------
+    match /users/{uid} {
+      allow read: if isSelf(uid);
+
+      allow create: if isSelf(uid)
+        && hasNoPrivilegedFlags(request.resource.data)
+        && isSelfAssignableRole(request.resource.data)
+        && isSelfAssignableStatus(request.resource.data)
+        && request.resource.data.keys().hasOnly([
+          "fullName",
+          "name",
+          "email_hash",
+          "phone_hash",
+          "tcNo_hash",
+          "email_masked",
+          "phone_masked",
+          "tcNo_masked",
+          "piiVersion",
+          "role",
+          "city",
+          "district",
+          "regionId",
+          "interests",
+          "skills",
+          "skillLevel",
+          "availability",
+          "motivation",
+          "volunteerStatus",
+          "volunteerTermsAccepted",
+          "onboardingCompletedAt",
+          "photoURL",
+          "isCoordinator",
+          "isApprovedVolunteer",
+          "lastActiveAt",
+          "createdAt",
+          "updatedAt"
+        ]);
+
+      // isCoordinator, isApprovedVolunteer ve phoneVerifiedAt burada yok:
+      // bunlari yalnizca koordinator ya da cloud functions yazar
+      allow update: if isSelf(uid)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          "fullName",
+          "name",
+          "email_hash",
+          "phone_hash",
+          "tcNo_hash",
+          "email_masked",
+          "phone_masked",
+          "tcNo_masked",
+          "piiVersion",
+          "role",
+          "city",
+          "district",
+          "regionId",
+          "interests",
+          "skills",
+          "skillLevel",
+          "availability",
+          "motivation",
+          "volunteerStatus",
+          "volunteerTermsAccepted",
+          "onboardingCompletedAt",
+          "photoURL",
+          "lastActiveAt",
+          "createdAt",
+          "updatedAt"
+        ])
+        && (
+          !request.resource.data.diff(resource.data).affectedKeys().hasAny(["role"]) ||
+          isSelfAssignableRole(request.resource.data) ||
+          isCoordinator()
+        )
+        && (
+          !request.resource.data.diff(resource.data).affectedKeys().hasAny(["volunteerStatus"]) ||
+          isSelfAssignableStatus(request.resource.data)
+        );
+
+      allow update: if isCoordinator()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          "role",
+          "city",
+          "district",
+          "regionId",
+          "interests",
+          "skills",
+          "skillLevel",
+          "availability",
+          "motivation",
+          "volunteerStatus",
+          "volunteerTermsAccepted",
+          "onboardingCompletedAt",
+          "isCoordinator",
+          "isApprovedVolunteer",
+          "email_masked",
+          "phone_masked",
+          "tcNo_masked",
+          "piiVersion",
+          "lastActiveAt",
+          "updatedAt"
+        ]);
+
+      allow delete: if false;
+
+      match /devices/{deviceId} {
+        allow read, write: if isSelf(uid);
+      }
+    }
+
+    // --------------------------------------------------------------------
+    // USERS_PUBLIC: koordinator panellerinin okudugu maskeli kopya
+    // --------------------------------------------------------------------
+    match /users_public/{uid} {
+      function publicKeys() {
+        return [
+          "uid",
+          "id",
+          "fullName",
+          "name",
+          "role",
+          "city",
+          "district",
+          "regionId",
+          "availability",
+          "volunteerStatus",
+          "isCoordinator",
+          "isApprovedVolunteer",
+          "skillLevel",
+          "skills",
+          "interests",
+          "email",
+          "phone",
+          "tcNo",
+          "email_masked",
+          "phone_masked",
+          "tcNo_masked",
+          "piiMasked",
+          "photoURL",
+          "lastActiveAt",
+          "createdAt",
+          "updatedAt"
+        ];
+      }
+
+      allow read: if isSelf(uid) || isCoordinator();
+      allow create: if (isSelf(uid) || isCoordinator())
+        && request.resource.data.keys().hasOnly(publicKeys());
+      allow update: if (isSelf(uid) || isCoordinator())
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(publicKeys());
+      allow delete: if false;
+    }
+
+    // --------------------------------------------------------------------
+    // CONSENTS
+    // --------------------------------------------------------------------
+    match /consents/{uid} {
+      allow read, create, update: if isSelf(uid) || isCoordinator();
+      allow delete: if false;
+    }
+
+    // --------------------------------------------------------------------
+    // REQUESTS: konum ve iletisim bilgisi icerir, herkese acik degil
+    // --------------------------------------------------------------------
+    match /requests/{requestId} {
+      allow read: if isCoordinator()
+        || isApprovedVolunteer()
+        || isRequestOwner(resource.data)
+        || (signedIn() && resource.data.get("assignedVolunteerId", null) == request.auth.uid);
+
+      allow create: if signedIn()
+        && (isVictim() || userRole() == null)
+        && (
+          request.resource.data.userId == request.auth.uid ||
+          request.resource.data.createdBy == request.auth.uid
+        );
+
+      allow update: if isCoordinator();
+
+      // onayli gonullu bos bir talebi yalnizca kendi uzerine alabilir
+      allow update: if isApprovedVolunteer()
+        && resource.data.get("assignedVolunteerId", null) == null
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          "status",
+          "assignedVolunteerId",
+          "volunteerLive",
+          "assignedAt",
+          "updatedAt"
+        ])
+        && request.resource.data.status == "assigned"
+        && request.resource.data.assignedVolunteerId == request.auth.uid;
+
+      allow update: if isRequestOwner(resource.data)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          "description",
+          "contactNote",
+          "photoUrl",
+          "updatedAt",
+          "deleted",
+          "deletedAt"
+        ]);
+
+      allow update: if isApprovedVolunteer()
+        && resource.data.assignedVolunteerId == request.auth.uid
+        && request.resource.data.assignedVolunteerId == resource.data.assignedVolunteerId
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          "status",
+          "updatedAt",
+          "volunteerLive",
+          "timeline",
+          "etaMinutes",
+          "checkInAt",
+          "checkOutAt",
+          "completionNote",
+          "photoUrl"
+        ]);
+
+      // baskasinin ustlendigi talepte canli konum degistirilemez
+      allow update: if isApprovedVolunteer()
+        && resource.data.get("assignedVolunteerId", null) == null
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          "lastApplicantId",
+          "volunteerLive",
+          "updatedAt"
+        ])
+        && request.resource.data.lastApplicantId == request.auth.uid;
+
+      allow delete: if false;
+    }
+
+    // --------------------------------------------------------------------
+    // VOLUNTEER APPLICATIONS
+    // --------------------------------------------------------------------
+    match /volunteerApplications/{appId} {
+      allow read: if isCoordinator()
+        || (signedIn() && resource.data.volunteerId == request.auth.uid);
+
+      allow create: if isApprovedVolunteer()
+        && request.resource.data.volunteerId == request.auth.uid
+        && request.resource.data.status == "pending";
+
+      allow update, delete: if isCoordinator();
+
+      allow update: if signedIn()
+        && resource.data.volunteerId == request.auth.uid
+        && request.resource.data.volunteerId == resource.data.volunteerId
+        && request.resource.data.requestId == resource.data.requestId
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          "status",
+          "updatedAt",
+          "volunteerLive"
+        ])
+        && request.resource.data.status in ["pending", "withdrawn"];
+    }
+
+    // --------------------------------------------------------------------
+    // CHATS: yalnizca katilimcilar ve koordinatorler
+    // --------------------------------------------------------------------
+    match /chats/{chatId} {
+      allow get: if signedIn() && (resource == null || canAccessChat(resource.data));
+      allow list: if isCoordinator()
+        || (signedIn() && request.auth.uid in resource.data.participantIds);
+
+      allow create: if signedIn()
+        && request.resource.data.participantIds is list
+        && request.auth.uid in request.resource.data.participantIds;
+
+      allow update: if canAccessChat(resource.data)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          "id",
+          "title",
+          "kind",
+          "requestId",
+          "participantIds",
+          "lastMessageText",
+          "lastMessageAt",
+          "lastSenderId",
+          "updatedAt",
+          "createdAt"
+        ]);
+
+      allow delete: if false;
+
+      match /messages/{msgId} {
+        allow read: if canAccessChatById(chatId);
+        allow create: if canAccessChatById(chatId)
+          && request.resource.data.senderId == request.auth.uid;
+        allow update, delete: if false;
+      }
+
+      match /read_receipts/{uid} {
+        allow read: if canAccessChatById(chatId);
+        allow create, update: if canAccessChatById(chatId)
+          && request.auth.uid == uid
+          && request.resource.data.uid == uid;
+        allow delete: if false;
+      }
+    }
+
+    match /announcements/{id} {
+      allow read: if signedIn();
+      allow create, update, delete: if isCoordinator();
+    }
+
+    match /system_settings/{id} {
+      allow read: if signedIn();
+      allow create, update, delete: if isCoordinator();
+    }
+
+    match /system_backups/{id} {
+      allow read, create, update, delete: if isCoordinator();
+    }
+
+    match /donations/{id} {
+      allow read: if isCoordinator();
+      allow create, update, delete: if isCoordinator();
+    }
+
+    match /inventories/{id} {
+      allow read: if isCoordinator();
+      allow create, update, delete: if isCoordinator();
+    }
+
+    match /knowledge_chunks/{id} {
+      allow read: if signedIn();
+      allow write: if isCoordinator();
+    }
+
+    match /deletion_tickets/{id} {
+      allow read: if signedIn() && (resource.data.uid == request.auth.uid || isCoordinator());
+      allow create: if signedIn() && request.resource.data.uid == request.auth.uid;
+      allow update, delete: if isCoordinator();
+    }
+
+    match /exports/{id} {
+      allow read: if signedIn() && (resource.data.uid == request.auth.uid || isCoordinator());
+      allow create: if signedIn() && request.resource.data.uid == request.auth.uid;
+      allow update, delete: if false;
+    }
+
+    match /audit_logs/{id} {
+      allow read: if isCoordinator();
+      allow create: if isCoordinator();
+      allow update, delete: if false;
+    }
+
+    match /coordinator_notes/{id} {
+      allow read, create, update, delete: if isCoordinator();
+    }
+
+    match /sos_logs/{id} {
+      allow read: if isCoordinator() || (signedIn() && resource.data.userId == request.auth.uid);
+      allow create: if signedIn() && request.resource.data.userId == request.auth.uid;
+      allow update: if isCoordinator() || (signedIn() && resource.data.userId == request.auth.uid);
+      allow delete: if false;
+    }
+
+    match /client_events/{id} {
+      allow create: if signedIn() && request.resource.data.userId == request.auth.uid;
+      allow read: if isCoordinator();
+      allow update, delete: if false;
+    }
+
+    // kod ozetleri istemciye kapali, tum islemler cloud functions uzerinden
+    match /phone_verifications/{uid} {
+      allow read, write: if false;
+    }
+
+    match /rate_limits/{id} {
+      allow read, write: if false;
+    }
+
+    match /sosVoiceMessages/{msgId} {
+      allow create: if signedIn()
+        && request.resource.data.userId == request.auth.uid;
+      allow update: if signedIn()
+        && (resource.data.userId == request.auth.uid || isCoordinator());
+      allow read: if canViewVictimMedia(resource.data);
+    }
+
+    match /requestPhotos/{photoId} {
+      allow create: if signedIn() && request.resource.data.userId == request.auth.uid;
+      allow read: if canViewVictimMedia(resource.data);
+    }
+
+    // davet kodlari yalnizca claimCoordinatorRole fonksiyonu ile kullanilir
+    match /coordinator_invites/{code} {
+      allow read, create, update, delete: if isCoordinator();
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
